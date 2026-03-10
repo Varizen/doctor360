@@ -1,0 +1,389 @@
+// Doctor360 Healthcare Platform - Prisma Schema
+// Production-ready MVP for healthcare SaaS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          UserRole @default(PATIENT)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  patientProfile  PatientProfile?
+  doctorProfile   DoctorProfile?
+  appointments    Appointment[]
+  emrNotesAsPatient EMRNote[]      @relation("PatientEMRNotes")
+  prescriptions   Prescription[]
+  payments        Payment[]
+  auditLogs       AuditLog[]
+  aiChatSessions  AIChatSession[]
+  centralArchives CentralArchive[]
+
+  @@map("users")
+}
+
+model PatientProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone       String?
+  dateOfBirth DateTime?
+  gender      String?
+  bloodType   String?
+  address     String?
+  emergencyContact String?
+  medicalHistory String? // JSON string for allergies, conditions, etc.
+  insuranceProvider String?
+  insuranceNumber String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("patient_profiles")
+}
+
+model DoctorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone           String?
+  specialization  String
+  licenseNumber   String
+  education       String?
+  experience      Int      @default(0) // years
+  consultationFee Float    @default(0)
+  bio             String?
+  availableDays   String?  // JSON array: ["Monday", "Tuesday", ...]
+  availableHours  String?  // JSON: {"start": "09:00", "end": "17:00"}
+  isVerified      Boolean  @default(false)
+  isAvailable     Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  appointments    Appointment[]
+  emrNotes        EMRNote[]       @relation("DoctorEMRNotes")
+  aiChatSessions  AIChatSession[] // AI chat sessions assigned to this doctor
+  
+  @@map("doctor_profiles")
+}
+
+// ============================================================================
+// APPOINTMENTS
+// ============================================================================
+
+enum AppointmentStatus {
+  DRAFT
+  PENDING_PAYMENT
+  CONFIRMED
+  IN_CONSULTATION
+  COMPLETED
+  CANCELLED
+}
+
+enum AppointmentType {
+  IN_PERSON
+  VIDEO_CONSULTATION
+  PHONE_CONSULTATION
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  patientId   String
+  patient     User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId    String
+  doctor      DoctorProfile     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  date        DateTime
+  duration    Int               @default(30) // minutes
+  type        AppointmentType   @default(IN_PERSON)
+  status      AppointmentStatus @default(DRAFT)
+  reason      String?
+  notes       String?
+  sessionToken String?          // For video consultation
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  emrNote     EMRNote?
+  prescription Prescription?
+  payment     Payment?
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@map("appointments")
+}
+
+// ============================================================================
+// EMR (Electronic Medical Records)
+// ============================================================================
+
+model EMRNote {
+  id            String   @id @default(cuid())
+  appointmentId String   @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       User     @relation("PatientEMRNotes", fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId      String
+  doctor        DoctorProfile @relation("DoctorEMRNotes", fields: [doctorId], references: [id], onDelete: Cascade)
+  chiefComplaint String?
+  presentIllness String?
+  diagnosis     String?
+  treatment     String?
+  notes         String?
+  followUpDate  DateTime?
+  vitalSigns    String?  // JSON: {bloodPressure, temperature, pulse, weight, height}
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@map("emr_notes")
+}
+
+// ============================================================================
+// PRESCRIPTIONS
+// ============================================================================
+
+model Prescription {
+  id            String   @id @default(cuid())
+  appointmentId String   @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medications   String   // JSON array of medications
+  instructions  String?
+  validUntil    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([patientId])
+  @@map("prescriptions")
+}
+
+// ============================================================================
+// PAYMENTS
+// ============================================================================
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  appointmentId String        @unique
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       User          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  amount        Float
+  currency      String        @default("USD")
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String?
+  transactionId String?
+  paidAt        DateTime?
+  refundedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([patientId])
+  @@index([status])
+  @@map("payments")
+}
+
+// ============================================================================
+// AUDIT LOGS
+// ============================================================================
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  REGISTER
+  APPOINTMENT_CREATED
+  APPOINTMENT_UPDATED
+  APPOINTMENT_CANCELLED
+  EMR_CREATED
+  EMR_UPDATED
+  PRESCRIPTION_CREATED
+  PAYMENT_CREATED
+  PAYMENT_REFUNDED
+  PROFILE_UPDATED
+  USER_CREATED
+  USER_DELETED
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      AuditAction
+  entityType  String?
+  entityId    String?
+  details     String?     // JSON string with additional details
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// SYSTEM CONFIGURATION
+// ============================================================================
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   // JSON string
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_configs")
+}
+
+// ============================================================================
+// SPECIALTIES (Reference Data)
+// ============================================================================
+
+model Specialty {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+
+  @@map("specialties")
+}
+
+// ============================================================================
+// AI HEALTH ASSISTANT
+// ============================================================================
+
+enum AIAssistantType {
+  ROMJAN      // Male assistant
+  FATIMAH     // Female assistant
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  COMPLETED
+  ESCALATED_TO_DOCTOR
+  ESCALATED_TO_HOSPITAL
+  ARCHIVED
+}
+
+enum AssessmentUrgency {
+  LOW           // Can wait for regular consultation
+  MEDIUM        // Should see doctor soon
+  HIGH          // Needs immediate attention
+  EMERGENCY     // Go to hospital immediately
+}
+
+model AIChatSession {
+  id              String            @id @default(cuid())
+  patientId       String
+  patient         User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assistantType   AIAssistantType   @default(ROMJAN)
+  status          ChatSessionStatus @default(ACTIVE)
+  
+  // Assessment Results
+  primarySymptom    String?
+  symptoms        String?           // JSON array of symptoms
+  assessmentResult String?          // JSON: {urgency, recommendation, suggestedSpecialty}
+  urgencyLevel    AssessmentUrgency? @default(LOW)
+  
+  // Doctor Assignment
+  assignedDoctorId  String?
+  assignedDoctor    DoctorProfile?  @relation(fields: [assignedDoctorId], references: [id], onDelete: SetNull)
+  
+  // Archive Status
+  isArchived      Boolean           @default(false)
+  archivedAt      DateTime?
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  completedAt     DateTime?
+
+  // Relations
+  messages        AIChatMessage[]
+  
+  @@index([patientId])
+  @@index([status])
+  @@index([assignedDoctorId])
+  @@index([createdAt])
+  @@map("ai_chat_sessions")
+}
+
+model AIChatMessage {
+  id              String        @id @default(cuid())
+  sessionId       String
+  session         AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender          String        // 'patient', 'romjan', 'fatimah', 'doctor'
+  message         String
+  messageType     String        @default("text") // text, symptom, assessment, recommendation
+  metadata        String?       // JSON: additional data like symptom severity, etc.
+  createdAt       DateTime      @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("ai_chat_messages")
+}
+
+// ============================================================================
+// CENTRAL ARCHIVE
+// ============================================================================
+
+model CentralArchive {
+  id              String    @id @default(cuid())
+  patientId       String
+  patient         User      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  // Archive Data
+  archiveType     String    // 'chat_session', 'medical_record', 'prescription', 'lab_result'
+  referenceId     String    // ID of the original record
+  data            String    // JSON: archived data
+  
+  // Retention
+  isSleeping      Boolean   @default(false) // Sleeping if older than 2 years
+  sleepStartedAt  DateTime?
+  
+  // Access Tracking
+  lastAccessedAt  DateTime?
+  accessCount     Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([patientId])
+  @@index([archiveType])
+  @@index([isSleeping])
+  @@map("central_archives")
+}
