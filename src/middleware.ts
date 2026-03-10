@@ -50,7 +50,11 @@ export function middleware(request: NextRequest) {
 
   // Apply rate limiting to API routes
   if (pathname.startsWith('/api/')) {
-    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown'
+    // Get client IP from headers (NextRequest doesn't have .ip property)
+    const forwardedFor = request.headers.get('x-forwarded-for')
+    const ip = forwardedFor?.split(',')[0]?.trim() || 
+               request.headers.get('x-real-ip') || 
+               'unknown'
     const key = `${ip}:${pathname}`
     const now = Date.now()
 

@@ -28,9 +28,9 @@ export async function uploadImage(
   publicId?: string
 ): Promise<UploadResult> {
   try {
-    const uploadOptions: cloudinary.UploadApiOptions = {
+    const uploadOptions = {
       folder,
-      resource_type: 'image',
+      resource_type: 'image' as const,
       overwrite: true,
       transformation: [
         { quality: 'auto:good' },
