@@ -7,11 +7,14 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
   	extend: {
   		fontFamily: {
-			shiliguri: ["'Hind Siliguri'", 'Plus Jakarta Sans', 'sans-serif'],
+			shiliguri: ["'Hind Siliguri'", "'Noto Sans Bengali'", 'Plus Jakarta Sans', 'sans-serif'],
+			bengali: ["'Hind Siliguri'", "'Noto Sans Bengali'", 'sans-serif'],
+			sans: ["'Hind Siliguri'", "'Noto Sans Bengali'", 'Geist', 'Plus Jakarta Sans', 'sans-serif'],
 		},
 		colors: {
   			background: 'hsl(var(--background))',

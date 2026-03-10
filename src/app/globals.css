@@ -3,10 +3,34 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Global Bengali Font - Hind Siliguri */
+* {
+  font-family: 'Hind Siliguri', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Ensure Bengali text renders correctly */
+html {
+  font-family: 'Hind Siliguri', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+body {
+  font-family: 'Hind Siliguri', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Bengali text optimization */
+[lang="bn"],
+[lang="bn"] *,
+.bengali,
+.bengali * {
+  font-family: 'Hind Siliguri', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: 'Hind Siliguri', 'Geist', sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
